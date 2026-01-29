@@ -21,13 +21,23 @@ export default function SlidePreviewSection({
   isDesigning = false,
 }: SlidePreviewSectionProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const rawPreRef = useRef<HTMLPreElement>(null);
+  const streamPreRef = useRef<HTMLPreElement>(null);
   const [scale, setScale] = useState(1);
   const [activeTab, setActiveTab] = useState<TabId>("preview");
   const [copyLabel, setCopyLabel] = useState<"Copy" | "Copied!">("Copy");
 
   const showTabs = html != null;
   const showStreaming = isDesigning && html == null;
+  const PLACEHOLDER_TEXT = "Code will stream here as it's generated...";
+  const streamedCodeDisplay =
+    typeof streamedHtml === "string" && streamedHtml.length > 0 ? streamedHtml : PLACEHOLDER_TEXT;
+  const isPlaceholder = streamedCodeDisplay === PLACEHOLDER_TEXT;
+
+  useEffect(() => {
+    if (showStreaming && streamPreRef.current) {
+      streamPreRef.current.scrollTop = streamPreRef.current.scrollHeight;
+    }
+  }, [showStreaming, streamedHtml]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -45,12 +55,6 @@ export default function SlidePreviewSection({
     ro.observe(el);
     return () => ro.disconnect();
   }, [html]);
-
-  useEffect(() => {
-    if (showStreaming && streamedHtml && rawPreRef.current) {
-      rawPreRef.current.scrollTop = rawPreRef.current.scrollHeight;
-    }
-  }, [showStreaming, streamedHtml]);
 
   const copyRawHtml = async () => {
     const toCopy = html ?? streamedHtml;
@@ -97,16 +101,28 @@ export default function SlidePreviewSection({
       </div>
 
       {showStreaming ? (
-        <div className="flex flex-col bg-[#1e1e1e] min-h-[200px]" style={{ aspectRatio: "16 / 9" }}>
-          <div className="px-2 py-1.5 border-b border-[#333] shrink-0">
-            <span className="text-xs text-[#888]">Generating HTML…</span>
+        <div className="flex flex-col bg-[#1e1e1e] min-h-[280px] flex-1" style={{ aspectRatio: "16 / 9", minHeight: 280 }}>
+          <div className="px-3 py-2 border-b border-[#333] shrink-0 flex items-center gap-2 text-xs text-[#888]">
+            <span className="font-medium text-[#aaa]">Code</span>
+            <span>{streamedHtml ? "Streaming…" : "Waiting for stream…"}</span>
+            <span className="bubbling-dots" aria-hidden>
+              <span>.</span>
+              <span>.</span>
+              <span>.</span>
+            </span>
           </div>
-          <pre
-            ref={rawPreRef}
-            className="flex-1 overflow-auto p-3 m-0 text-xs text-[#d4d4d4] font-mono whitespace-pre-wrap break-all"
-          >
-            <code>{streamedHtml || "Waiting…"}</code>
-          </pre>
+          {isPlaceholder ? (
+            <div className="flex-1 flex items-center justify-center min-h-0 p-4">
+              <p className="text-sm text-[#888] font-mono text-center">{streamedCodeDisplay}</p>
+            </div>
+          ) : (
+            <pre
+              ref={streamPreRef}
+              className="flex-1 overflow-auto p-3 m-0 text-xs text-[#d4d4d4] font-mono whitespace-pre-wrap break-all min-h-0"
+            >
+              <code>{streamedCodeDisplay}</code>
+            </pre>
+          )}
         </div>
       ) : activeTab === "preview" ? (
         <div

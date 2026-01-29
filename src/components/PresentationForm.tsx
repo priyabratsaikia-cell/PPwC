@@ -4,9 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import { PresentationRequest, PresentationResponse, GenerationStatus } from "@/types/presentation";
 import { assembleSlides } from "@/lib/assembly";
 import { parseAndNormalizeContent } from "@/lib/gemini";
-import { exportSlidesToPdf } from "@/lib/pdfExport";
-import SlideshowView from "./SlideshowView";
 import SlidePreviewSection from "./SlidePreviewSection";
+import AssistantStepsPanel from "./AssistantStepsPanel";
 
 const styleOptions = [
   { value: "professional", label: "Professional", description: "Formal business style" },
@@ -49,14 +48,14 @@ export default function PresentationForm() {
   const [slideHtmls, setSlideHtmls] = useState<(string | null)[]>([]);
   const [slideStreamingHtmls, setSlideStreamingHtmls] = useState<(string | null)[]>([]);
   const [assembledHtml, setAssembledHtml] = useState<string | null>(null);
-  const [showFullPreview, setShowFullPreview] = useState(false);
-  const [isPdfGenerating, setIsPdfGenerating] = useState(false);
   const [showReadyModal, setShowReadyModal] = useState(false);
   const [showTwoColumnLayout, setShowTwoColumnLayout] = useState(false);
+  const [contentStreamCollapsed, setContentStreamCollapsed] = useState(false);
   const contentEndRef = useRef<HTMLDivElement>(null);
   const pdfContainerRef = useRef<HTMLDivElement>(null);
   const previewSectionRef = useRef<HTMLDivElement>(null);
   const rightContentScrollRef = useRef<HTMLDivElement>(null);
+  const contentStreamBodyRef = useRef<HTMLDivElement>(null);
   const slideSectionRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   useEffect(() => {
@@ -67,16 +66,21 @@ export default function PresentationForm() {
     }
   }, [status.status]);
 
+  useEffect(() => {
+    const el = contentStreamBodyRef.current;
+    if (el && streamedContent) el.scrollTop = el.scrollHeight;
+  }, [streamedContent]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setShowTwoColumnLayout(true);
+    setContentStreamCollapsed(false);
     setStatus({ status: "generating", message: "Creating content..." });
     setPresentation(null);
     setAssembledHtml(null);
     setStreamedContent("");
     setSlideHtmls([]);
     setSlideStreamingHtmls([]);
-    setShowFullPreview(false);
 
     try {
       const res = await fetch("/api/generate/stream", {
@@ -105,6 +109,7 @@ export default function PresentationForm() {
 
       const data = parseAndNormalizeContent(full);
       setPresentation(data);
+      setContentStreamCollapsed(true);
 
       const totalSlides = data.slides.length;
       setStatus({ status: "designing", message: "Crafting HTML slides...", completedSlides: 0, totalSlides });
@@ -176,7 +181,6 @@ export default function PresentationForm() {
     setStreamedContent("");
     setSlideHtmls([]);
     setSlideStreamingHtmls([]);
-    setShowFullPreview(false);
     setShowReadyModal(false);
     setShowTwoColumnLayout(false);
     setStatus({ status: "idle" });
@@ -193,26 +197,14 @@ export default function PresentationForm() {
     }
   };
 
-  const handleDownloadPdf = async () => {
-    if (!pdfContainerRef.current || !presentation) return;
-    setIsPdfGenerating(true);
-    try {
-      const filename = `${presentation.title.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
-      await exportSlidesToPdf(pdfContainerRef.current, filename);
-    } finally {
-      setIsPdfGenerating(false);
-    }
-  };
-
   const isGenerating = status.status === "generating";
   const isDesigning = status.status === "designing";
   const totalSlides = slideHtmls.length;
-  const allSlidesReady = totalSlides > 0 && slideHtmls.every((h) => h != null);
   const topic = (presentation?.title ?? formData.topic) || "—";
   const tone = STYLE_LABELS[formData.style] ?? formData.style;
 
   const slideCountForTodos = presentation ? totalSlides : formData.numberOfSlides;
-  const todos = [
+  const todos: { id: string; label: string; done: boolean; current: boolean }[] = [
     { id: "content", label: "Content generation", done: !!presentation, current: isGenerating },
     ...Array.from({ length: slideCountForTodos }, (_, i) => ({
       id: `slide-${i}`,
@@ -223,10 +215,7 @@ export default function PresentationForm() {
     { id: "ready", label: "Ready", done: status.status === "ready", current: status.status === "ready" },
   ];
 
-  const getSlideIndex = (id: string) => {
-    const m = id.match(/^slide-(\d+)$/);
-    return m ? parseInt(m[1], 10) : -1;
-  };
+  const canGoToSlide = (index: number) => totalSlides > 0 && slideHtmls[index] != null;
 
   // Chatbot home layout – show until user clicks Generate (fills viewport, no scroll)
   if (!showTwoColumnLayout) {
@@ -314,56 +303,95 @@ export default function PresentationForm() {
     );
   }
 
-  // Two-column layout – left sidebar + right content (fills viewport, no scroll)
+  // Three sections: Assistant Steps (workflow style) | Preview (stream + slides)
   return (
-    <div className="flex flex-col md:flex-row h-full min-h-0 overflow-hidden">
-      {/* Left section: static (does not scroll with page) */}
-      <aside className="w-full md:w-72 shrink-0 md:sticky md:top-0 md:h-screen md:overflow-y-auto border-b md:border-b-0 md:border-r border-[#e5e5e5] bg-[#fafafa] p-4 flex flex-col">
-        <div className="mb-4 pb-4 border-b border-[#e5e5e5]">
-          <p className="text-xs font-semibold text-[#4a4a4a] uppercase tracking-wide">Presentation</p>
-          <p className="font-semibold text-[#1a1a1a] mt-1 break-words">{topic}</p>
-          <p className="text-xs text-[#4a4a4a] mt-1">Tone: {tone}</p>
-        </div>
-        <p className="text-xs font-semibold text-[#4a4a4a] uppercase tracking-wide mb-2">Stages</p>
-        <ul className="space-y-1.5">
-          {todos.map((todo) => {
-            const slideIndex = getSlideIndex(todo.id);
-            const canGoToSlide = slideIndex >= 0 && totalSlides > 0 && slideHtmls[slideIndex] != null;
-            return (
-              <li
-                key={todo.id}
-                className={`flex items-center gap-2 text-sm ${
-                  todo.current ? "text-[#D04A02] font-medium" : todo.done ? "text-[#1a1a1a]" : "text-[#4a4a4a]"
-                } ${canGoToSlide ? "cursor-pointer hover:opacity-80" : ""}`}
-                onClick={canGoToSlide ? () => scrollToSlide(slideIndex) : undefined}
-                onKeyDown={
-                  canGoToSlide
-                    ? (e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          scrollToSlide(slideIndex);
-                        }
-                      }
-                    : undefined
-                }
-                role={canGoToSlide ? "button" : undefined}
-                tabIndex={canGoToSlide ? 0 : undefined}
-              >
-                {todo.done ? (
-                  <span className="text-green-600 shrink-0" aria-hidden>✓</span>
-                ) : todo.current ? (
-                  <span className="w-4 h-4 border-2 border-[#D04A02] border-t-transparent rounded-full animate-spin shrink-0" />
-                ) : (
-                  <span className="w-4 h-4 rounded-full border border-[#e5e5e5] shrink-0" />
-                )}
-                <span>{todo.label}</span>
-              </li>
-            );
-          })}
-        </ul>
-      </aside>
+    <div className="flex h-full min-h-0 overflow-hidden">
+      {/* Middle: Assistant Steps panel – workflow style; when idle show form, else topic + tone + stages */}
+      <AssistantStepsPanel
+        topic={topic}
+        tone={tone}
+        todos={todos}
+        onSlideClick={scrollToSlide}
+        canGoToSlide={canGoToSlide}
+      >
+        {(status.status === "idle" || status.status === "error") && !presentation && (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <h3 className="text-sm font-bold text-[#1a1a1a] mb-1">Create presentation</h3>
+              <p className="text-xs text-[#4a4a4a]">Enter topic, audience, and style.</p>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#1a1a1a] mb-1">Presentation topic *</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g., Introduction to Machine Learning"
+                className="w-full px-3 py-2 border border-[#e5e5e5] rounded-lg text-sm focus:ring-2 focus:ring-[#D04A02] focus:border-[#D04A02] bg-white"
+                value={formData.topic}
+                onChange={(e) => setFormData({ ...formData, topic: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#1a1a1a] mb-1">Target audience *</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g., Senior executives"
+                className="w-full px-3 py-2 border border-[#e5e5e5] rounded-lg text-sm focus:ring-2 focus:ring-[#D04A02] focus:border-[#D04A02] bg-white"
+                value={formData.audience}
+                onChange={(e) => setFormData({ ...formData, audience: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#1a1a1a] mb-1">Slides: {formData.numberOfSlides}</label>
+              <input
+                type="range"
+                min="3"
+                max="20"
+                className="w-full h-2 rounded-lg"
+                style={{ accentColor: "#D04A02" }}
+                value={formData.numberOfSlides}
+                onChange={(e) => setFormData({ ...formData, numberOfSlides: parseInt(e.target.value) })}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#1a1a1a] mb-1">Style</label>
+              <div className="flex flex-wrap gap-1">
+                {styleOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, style: option.value as PresentationRequest["style"] })}
+                    className={`px-2 py-1.5 rounded text-xs font-medium border ${
+                      formData.style === option.value ? "border-[#D04A02] bg-[#fef3ef] text-[#D04A02]" : "border-[#e5e5e5] bg-white text-[#4a4a4a]"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#1a1a1a] mb-1">Additional instructions (optional)</label>
+              <textarea
+                rows={2}
+                placeholder="e.g., Include data visualization..."
+                className="w-full px-3 py-2 border border-[#e5e5e5] rounded-lg text-sm focus:ring-2 focus:ring-[#D04A02] focus:border-[#D04A02] bg-white resize-none"
+                value={formData.additionalInstructions}
+                onChange={(e) => setFormData({ ...formData, additionalInstructions: e.target.value })}
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full px-4 py-2.5 bg-[#D04A02] hover:bg-[#b03e02] text-white font-semibold rounded-lg text-sm"
+            >
+              Generate presentation
+            </button>
+          </form>
+        )}
+      </AssistantStepsPanel>
 
-      {/* Right section: main never scrolls; only inner content area scrolls so bar stays fixed */}
+      {/* Right: Preview section – content streaming + slide previews (no Preview/Download bar) */}
       <main className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
         {status.status === "error" && (
           <div className="p-4 m-4 bg-red-50 border border-red-200 rounded-lg">
@@ -378,160 +406,40 @@ export default function PresentationForm() {
           </div>
         )}
 
-        {/* Idle: show form in right section (scrollable wrapper so main doesn't scroll) */}
+        {/* Idle: preview section shows placeholder */}
         {(status.status === "idle" || status.status === "error") && !presentation && (
-          <div className="flex-1 min-h-0 overflow-auto">
-          <form onSubmit={handleSubmit} className="p-6 space-y-6">
-            <div className="max-w-xl">
-              <h1 className="text-xl font-bold text-[#1a1a1a]">Create presentation</h1>
-              <p className="text-[#4a4a4a] mt-1 text-sm">Enter topic, audience, and style.</p>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="sm:col-span-2">
-                <label className="block text-sm font-semibold text-[#1a1a1a] mb-1">Presentation topic *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g., Introduction to Machine Learning"
-                  className="w-full px-4 py-3 border border-[#e5e5e5] rounded-lg focus:ring-2 focus:ring-[#D04A02] focus:border-[#D04A02] transition bg-white"
-                  value={formData.topic}
-                  onChange={(e) => setFormData({ ...formData, topic: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-[#1a1a1a] mb-1">Target audience *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g., Senior executives"
-                  className="w-full px-4 py-3 border border-[#e5e5e5] rounded-lg focus:ring-2 focus:ring-[#D04A02] focus:border-[#D04A02] transition bg-white"
-                  value={formData.audience}
-                  onChange={(e) => setFormData({ ...formData, audience: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-[#1a1a1a] mb-1">Slides: {formData.numberOfSlides}</label>
-                <input
-                  type="range"
-                  min="3"
-                  max="20"
-                  className="w-full h-2 rounded-lg"
-                  style={{ accentColor: "#D04A02" }}
-                  value={formData.numberOfSlides}
-                  onChange={(e) =>
-                    setFormData({ ...formData, numberOfSlides: parseInt(e.target.value) })
-                  }
-                />
-                <div className="flex justify-between text-xs text-[#4a4a4a] mt-0.5">
-                  <span>3</span>
-                  <span>20</span>
-                </div>
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[#1a1a1a] mb-2">Style</label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {styleOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() =>
-                      setFormData({
-                        ...formData,
-                        style: option.value as PresentationRequest["style"],
-                      })
-                    }
-                    className={`p-3 rounded-lg border-2 text-left transition text-sm ${
-                      formData.style === option.value
-                        ? "border-[#D04A02] bg-[#fef3ef]"
-                        : "border-[#e5e5e5] hover:border-[#ccc] bg-white"
-                    }`}
-                  >
-                    <p className="font-medium text-[#1a1a1a]">{option.label}</p>
-                    <p className="text-xs text-[#4a4a4a] mt-0.5">{option.description}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[#1a1a1a] mb-1">Additional instructions (optional)</label>
-              <textarea
-                rows={2}
-                placeholder="e.g., Include data visualization..."
-                className="w-full px-4 py-3 border border-[#e5e5e5] rounded-lg focus:ring-2 focus:ring-[#D04A02] focus:border-[#D04A02] transition resize-none bg-white"
-                value={formData.additionalInstructions}
-                onChange={(e) =>
-                  setFormData({ ...formData, additionalInstructions: e.target.value })
-                }
-              />
-            </div>
-            <button
-              type="submit"
-              className="w-full sm:w-auto px-6 py-3 bg-[#D04A02] hover:bg-[#b03e02] text-white font-semibold rounded-lg transition"
-            >
-              Generate presentation
-            </button>
-          </form>
+          <div className="flex-1 flex items-center justify-center p-8 text-center text-[#4a4a4a] bg-white">
+            <p className="text-sm">Preview will appear here once you generate a presentation.</p>
           </div>
         )}
 
-        {/* Generating / Designing / Ready: right content = top bar (Preview, Download PDF) + placeholder or streaming + N slide sections */}
+        {/* Generating / Designing / Ready: preview section = placeholder or streaming + N slide sections (no top bar) */}
         {(status.status === "generating" || status.status === "designing" || status.status === "ready" || presentation) && (
-          <>
-            {showFullPreview && assembledHtml && presentation ? (
-              <div className="flex-1 min-h-0 overflow-auto border-t border-[#e5e5e5]">
-                <SlideshowView
-                  assembledHtml={assembledHtml}
-                  slideCount={presentation.slides.length}
-                  presentationTitle={presentation.title}
-                  onBack={() => setShowFullPreview(false)}
-                />
-              </div>
-            ) : (
-              <div className="flex-1 flex flex-col min-h-0" ref={previewSectionRef}>
-                {/* Top bar: always in place (sibling of scroll area, never scrolls) */}
-                <div className="shrink-0 flex items-center justify-end gap-3 p-4 border-b border-[#e5e5e5] bg-white">
-                  <button
-                    type="button"
-                    onClick={() => setShowFullPreview(true)}
-                    disabled={!allSlidesReady}
-                    className="px-4 py-2 bg-[#D04A02] hover:bg-[#b03e02] disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition text-sm"
-                  >
-                    Preview
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDownloadPdf}
-                    disabled={!allSlidesReady || isPdfGenerating}
-                    className="px-4 py-2 bg-[#1a1a1a] hover:bg-[#333] disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition text-sm flex items-center gap-2"
-                  >
-                    {isPdfGenerating ? (
-                      <>
-                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Downloading…
-                      </>
-                    ) : (
-                      "Download PDF"
-                    )}
-                  </button>
-                </div>
-
-                {/* Scrollable area only – bar stays fixed; only this div scrolls */}
-                <div ref={rightContentScrollRef} className="flex-1 min-h-0 overflow-auto">
+          <div className="flex-1 flex flex-col min-h-0" ref={previewSectionRef}>
+            <div
+              ref={rightContentScrollRef}
+              className={`flex-1 min-h-0 overflow-auto pt-4 ${isGenerating && streamedContent ? "flex flex-col" : ""}`}
+            >
                   {/* Before streaming starts: placeholder with emoji */}
                   {isGenerating && !streamedContent && (
                     <div className="flex items-center justify-center p-8 min-h-full text-center text-[#4a4a4a]">
-                      <div>
-                        <p className="text-5xl mb-3" aria-hidden>📽️</p>
-                        <p className="text-lg font-medium">Preview will be displayed here</p>
-                        <p className="text-sm mt-1">Content is being generated…</p>
+                      <div className="flex flex-col items-center gap-2">
+                        <p className="text-5xl mb-1" aria-hidden>📽️</p>
+                        <p className="text-lg font-medium flex items-center justify-center gap-0.5">
+                          Preview will be displayed here
+                          <span className="bubbling-dots ml-0.5" aria-hidden>
+                            <span>.</span>
+                            <span>.</span>
+                            <span>.</span>
+                          </span>
+                        </p>
                       </div>
                     </div>
                   )}
 
                   {/* Streaming content – show when we have streamed content or when designing/ready with final content */}
                   {((isGenerating && streamedContent) || (presentation && (isDesigning || status.status === "ready"))) && (
-                    <>
+                    <div className={`flex flex-col ${isGenerating && streamedContent ? "flex-1 min-h-0" : ""}`}>
                       {/* Off-screen container for PDF export (in DOM so html2canvas can capture .slide elements) */}
                       {assembledHtml && (
                         <div
@@ -544,20 +452,56 @@ export default function PresentationForm() {
                       )}
 
                       {(isGenerating || streamedContent) && (
-                        <div className="p-4 border-b border-[#e5e5e5] shrink-0">
-                          <p className="text-xs font-semibold text-[#4a4a4a] mb-2">Content stream</p>
-                          <div className="bg-[#1a1a1a] rounded-lg p-3 max-h-[240px] overflow-auto font-mono text-xs text-[#e5e5e5] whitespace-pre-wrap break-words">
-                            {streamedContent || "Waiting for content…"}
-                            <div ref={contentEndRef} />
-                          </div>
+                        <div
+                          className={
+                            isGenerating && streamedContent
+                              ? "flex flex-col flex-1 min-h-0 border-b border-[#e5e5e5] px-4"
+                              : "border-b border-[#e5e5e5] shrink-0 px-4"
+                          }
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setContentStreamCollapsed((c) => !c)}
+                            className="w-full flex items-center justify-between py-3 text-left hover:bg-[#f9f9f9] transition-colors rounded-t-lg -mx-4 px-4"
+                          >
+                            <span className="text-xs font-semibold text-[#4a4a4a]">Content stream</span>
+                            <svg
+                              className={`w-4 h-4 text-[#4a4a4a] transition-transform ${contentStreamCollapsed ? "" : "rotate-180"}`}
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                          {!contentStreamCollapsed && (
+                            <div
+                              className={
+                                isGenerating && streamedContent ? "flex-1 min-h-0 flex flex-col pb-4" : "pb-4"
+                              }
+                            >
+                              <div
+                                ref={contentStreamBodyRef}
+                                className={
+                                  isGenerating && streamedContent
+                                    ? "flex-1 min-h-0 overflow-auto bg-[#1a1a1a] rounded-lg p-3 font-mono text-xs text-[#e5e5e5] whitespace-pre-wrap break-words"
+                                    : "bg-[#1a1a1a] rounded-lg p-3 max-h-[240px] overflow-auto font-mono text-xs text-[#e5e5e5] whitespace-pre-wrap break-words"
+                                }
+                              >
+                                {streamedContent || "Waiting for content…"}
+                                <div ref={contentEndRef} />
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
 
                       {/* N rows: individual slide previews – show when we have slide count (designing or ready) */}
                       {(isDesigning || status.status === "ready") && totalSlides > 0 && (
-                        <div className="p-4 space-y-4">
+                        <div className="p-4 space-y-4 shrink-0">
                           <p className="text-xs font-semibold text-[#4a4a4a] shrink-0">
-                            Slide previews ({totalSlides} slides · 16:9, each rendered as individual HTML)
+                            Slide previews
                           </p>
                           <div className="space-y-4">
                             {slideHtmls.map((html, index) => (
@@ -579,12 +523,10 @@ export default function PresentationForm() {
                           </div>
                         </div>
                       )}
-                    </>
+                    </div>
                   )}
-                </div>
-              </div>
-            )}
-          </>
+            </div>
+          </div>
         )}
 
         {/* Completion modal – PwC theme */}

@@ -84,7 +84,7 @@ export default function SlideshowView({
         </div>
       </div>
 
-      {/* Tabs: Preview | Raw */}
+      {/* Tabs: Preview | Raw – selected = underline in color, no full highlight */}
       <div className="flex border-b border-[#e5e5e5]">
         <button
           type="button"
@@ -92,7 +92,7 @@ export default function SlideshowView({
           className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
             activeTab === "preview"
               ? "border-[#D04A02] text-[#D04A02]"
-              : "border-transparent text-[#4a4a4a] hover:text-[#1a1a1a] hover:border-[#e5e5e5]"
+              : "border-transparent text-[#4a4a4a] hover:text-[#1a1a1a]"
           }`}
         >
           Preview
@@ -103,7 +103,7 @@ export default function SlideshowView({
           className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
             activeTab === "raw"
               ? "border-[#D04A02] text-[#D04A02]"
-              : "border-transparent text-[#4a4a4a] hover:text-[#1a1a1a] hover:border-[#e5e5e5]"
+              : "border-transparent text-[#4a4a4a] hover:text-[#1a1a1a]"
           }`}
         >
           Raw

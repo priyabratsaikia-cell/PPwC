@@ -1,8 +1,33 @@
 "use client";
 
+import { useState, useCallback, useEffect } from "react";
+
 const PWC_ORANGE = "#D04A02";
 
 export default function TopNav({ projectName = "Untitled.pptx" }: { projectName?: string }) {
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const onFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    if (typeof document === "undefined") return;
+    try {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+        setIsFullscreen(true);
+      } else {
+        document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    } catch {
+      // Fullscreen API not supported or denied
+    }
+  }, []);
+
   return (
     <header className="shrink-0 h-12 flex items-center justify-between px-4 bg-white border-b border-[#e5e5e5]">
       <div className="flex items-center gap-2">
@@ -18,6 +43,22 @@ export default function TopNav({ projectName = "Untitled.pptx" }: { projectName?
         </button>
       </div>
       <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          className="flex items-center justify-center w-8 h-8 rounded text-[#4a4a4a] hover:bg-[#f5f5f5] border border-transparent"
+          aria-label={isFullscreen ? "Exit full screen" : "Full screen"}
+        >
+          {isFullscreen ? (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 4.5H4.5M9 15v4.5M9 19.5H4.5M15 9h4.5M19.5 9V4.5M15 15h4.5M19.5 15v4.5" />
+            </svg>
+          ) : (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+            </svg>
+          )}
+        </button>
         <button
           type="button"
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#4a4a4a] hover:bg-[#f5f5f5] rounded border border-transparent"
@@ -37,24 +78,6 @@ export default function TopNav({ projectName = "Untitled.pptx" }: { projectName?
           </svg>
           EXPORT
         </button>
-        <div className="flex items-center gap-2 pl-2 border-l border-[#e5e5e5]">
-          <span className="text-xs font-medium text-[#4a4a4a]">THEME:</span>
-          <div className="flex gap-1">
-            <button type="button" className="w-5 h-5 rounded-full border-2 border-[#e5e5e5]" style={{ backgroundColor: PWC_ORANGE }} aria-label="Orange theme" />
-            <button type="button" className="w-5 h-5 rounded-full bg-[#1a1a1a] border-2 border-[#e5e5e5]" aria-label="Black theme" />
-            <button type="button" className="w-5 h-5 rounded-full bg-[#dc2626] border-2 border-[#e5e5e5]" aria-label="Red theme" />
-          </div>
-          <button
-            type="button"
-            className="flex items-center gap-1 px-2 py-1 text-xs text-[#4a4a4a] hover:bg-[#f5f5f5] rounded"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            CUSTOMIZE
-          </button>
-        </div>
       </div>
     </header>
   );

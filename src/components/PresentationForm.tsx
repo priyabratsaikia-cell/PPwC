@@ -33,7 +33,11 @@ function normalizeStreamedSlideHtml(raw: string, index: number): string {
   return html;
 }
 
-export default function PresentationForm() {
+type PresentationFormProps = {
+  onGenerateStart?: () => void;
+};
+
+export default function PresentationForm({ onGenerateStart }: PresentationFormProps) {
   const [formData, setFormData] = useState<PresentationRequest>({
     topic: "",
     numberOfSlides: 8,
@@ -73,6 +77,7 @@ export default function PresentationForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    onGenerateStart?.();
     setShowTwoColumnLayout(true);
     setContentStreamCollapsed(false);
     setStatus({ status: "generating", message: "Creating content..." });

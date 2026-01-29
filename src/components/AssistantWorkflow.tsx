@@ -12,12 +12,12 @@ export default function AssistantWorkflow({ children }: { children: React.ReactN
           <h2 className="text-xs font-bold uppercase tracking-wider text-[#4a4a4a]">Assistant Workflow</h2>
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#e5e5e5] text-[#4a4a4a] font-medium">V2.4</span>
         </div>
-        <div className="flex gap-0">
+        <div className="flex gap-4 border-b border-[#e5e5e5] -mb-[1px]">
           <button
             type="button"
             onClick={() => setActiveTab("preview")}
-            className={`px-3 py-1.5 text-xs font-semibold uppercase tracking-wide rounded-t ${
-              activeTab === "preview" ? "bg-white text-[#1a1a1a] border border-[#e5e5e5] border-b-0" : "text-[#4a4a4a] hover:bg-[#e5e5e5]"
+            className={`px-3 py-1.5 text-xs font-semibold uppercase tracking-wide border-b-2 transition-colors ${
+              activeTab === "preview" ? "text-[#D04A02] border-[#D04A02]" : "text-[#4a4a4a] border-transparent hover:text-[#1a1a1a]"
             }`}
           >
             PREVIEW
@@ -25,8 +25,8 @@ export default function AssistantWorkflow({ children }: { children: React.ReactN
           <button
             type="button"
             onClick={() => setActiveTab("outline")}
-            className={`px-3 py-1.5 text-xs font-semibold uppercase tracking-wide rounded-t ${
-              activeTab === "outline" ? "bg-white text-[#1a1a1a] border border-[#e5e5e5] border-b-0" : "text-[#4a4a4a] hover:bg-[#e5e5e5]"
+            className={`px-3 py-1.5 text-xs font-semibold uppercase tracking-wide border-b-2 transition-colors ${
+              activeTab === "outline" ? "text-[#D04A02] border-[#D04A02]" : "text-[#4a4a4a] border-transparent hover:text-[#1a1a1a]"
             }`}
           >
             OUTLINE
@@ -36,7 +36,7 @@ export default function AssistantWorkflow({ children }: { children: React.ReactN
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         <div className="flex-1 min-h-0 overflow-hidden">{children}</div>
         <div className="shrink-0 px-4 py-2 text-[10px] text-[#9ca3af] border-t border-[#e5e5e5] bg-[#f0f0f0]">
-          MODEL: ENTERPRISE GPT-40
+          MODEL: gemini-3-pro-preview
         </div>
       </div>
     </div>

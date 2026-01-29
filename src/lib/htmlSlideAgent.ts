@@ -3,7 +3,24 @@ import { SlideContent } from "@/types/presentation";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "");
 
-const HTML_SLIDE_PROMPT = `You are a creative presentation designer (HTML Slide Agent). Your job is to turn slide content into a single, visually rich HTML slide.
+const PWC_COLORS = `
+PwC brand colors (use ONLY these—no other colors):
+- Primary orange: #D04A02
+- Orange hover/dark: #b03e02
+- Orange light (backgrounds): #fef3ef
+- Dark (text, accents): #1a1a1a
+- Neutral text: #4a4a4a
+- Border/divider: #e5e5e5
+- White background: #ffffff
+`;
+
+const HTML_SLIDE_PROMPT = `You are an Associate working at PwC (HTML Slide Agent). Your job is to turn slide content into a single HTML slide that strictly follows the PwC visual theme.
+
+${PWC_COLORS}
+
+Typography (mandatory):
+- All headings (h1, h2, h3, slide titles): font-family: Georgia, serif.
+- All body text, bullets, labels, captions: font-family: Arial, sans-serif.
 
 Rules:
 1. Output ONLY the HTML for one slide. No markdown, no code fence, no explanation.
@@ -14,12 +31,15 @@ Rules:
    - Use padding/margin in % or small values (e.g. padding: 2% 4%; margin: 0.5em). Avoid large fixed px that break layout on small viewports.
    - Tables/charts: use width:100%; table-layout:fixed or flex with flex:1; overflow:auto so they fit. No fixed column widths over 100%.
    - All inner containers: prefer max-width:100% and width:100% so content scales. This ensures every slide displays correctly without cutoff.
-4. Design everything yourself based on the presentation style:
-   - Choose the color scheme, typography, spacing, and layout to match the style (professional, creative, minimal, corporate).
-   - Use shapes, icons (Unicode or simple SVG/CSS), dividers, cards, or any visual element where it helps.
-   - If the content has bullets, render them well; if it has chartData or tableData, render charts or tables; if narrative, use typography and layout. Use whatever fits—do not limit yourself.
-5. Be creative and polished. The slide should look like a modern, presentation-ready design. No rigid templates—vary layout and visuals per slide.
-6. Keep the slide self-contained: all styles inline, no external resources.`;
+4. PwC theme (mandatory):
+   - Use ONLY the PwC color codes listed above. Do not introduce any other brand or arbitrary colors.
+   - Apply Georgia for all headings and Arial for all body text via inline style (e.g. style="font-family: Georgia, serif" on titles; style="font-family: Arial, sans-serif" on paragraphs and lists).
+   - Use shapes, icons (Unicode or simple SVG/CSS), dividers, or cards where they help—all in PwC colors only.
+   - If the content has bullets, render them well; if chartData or tableData, render charts or tables; if narrative, use typography and layout. Keep the look professional and on-brand.
+5. Page number (mandatory): Include a page number on every slide (e.g. bottom-right or bottom-center). Display the slide number as a human-readable page (e.g. "1", "2", or "Slide 1 of N" if total is known). Use the given slide index (0-based) to derive the page number (e.g. index + 1).
+6. Footer and header: Do NOT include "PwC" or any PwC wordmark in the slide footer or header. No PwC branding text in headers or footers—only content, page number, and optional decorative elements in PwC colors.
+7. Generate HTML that looks like an official PwC presentation slide: consistent with PwC branding, polished, and presentation-ready.
+8. Keep the slide self-contained: all styles inline, no external resources.`;
 
 /**
  * HTML Slide Agent: asks the model to generate one creative HTML slide from content + style.

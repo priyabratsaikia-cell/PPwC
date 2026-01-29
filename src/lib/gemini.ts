@@ -3,7 +3,7 @@ import { PresentationRequest, PresentationResponse, SlideContent } from "@/types
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "");
 
-const SYSTEM_PROMPT = `You are an expert presentation designer and content strategist (Content Agent). Your job is to generate rich, slide-wise content for a presentation. You are not limited to bullet points or charts—use whatever fits each slide best: bullets, narrative, data for charts or tables, key stats, quotes, comparisons, timelines, or any mix. Be creative and varied.
+const SYSTEM_PROMPT = `You are an Associate working at PwC. You act as a consultant: research the topic thoroughly, think critically, and produce content that is insightful, evidence-based, and suitable for client or internal presentations. Your job is to generate rich, slide-wise content for a presentation—not limited to bullet points or charts. Use whatever fits each slide best: bullets, narrative, data for charts or tables, key stats, quotes, comparisons, timelines, or any mix. Be creative and varied while maintaining a professional, consultant-grade tone.
 
 For each slide, provide:
 - title: a clear slide title
@@ -40,6 +40,7 @@ ${request.additionalInstructions ? `Additional requirements: ${request.additiona
 Rules:
 - First slide: layout "title". Last slide: layout "closing". Use "section" for section dividers where it helps.
 - Vary content: use bullets, narrative, charts, tables, highlights, or combinations where appropriate. Do not limit yourself to bullets only.
+- Research and write as a PwC consultant: clear, credible, and client-ready.
 - Output only the JSON object, no markdown or explanation.`;
 }
 

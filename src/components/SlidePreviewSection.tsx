@@ -73,14 +73,14 @@ export default function SlidePreviewSection({
       <div className="px-3 py-2 bg-[#f5f5f5] border-b border-[#e5e5e5] shrink-0 flex items-center justify-between gap-2">
         <span className="text-sm font-medium text-[#4a4a4a]">Slide {slideNumber}</span>
         {showTabs && (
-          <div className="flex rounded-md border border-[#e5e5e5] overflow-hidden">
+          <div className="flex gap-4 border-b border-[#e5e5e5] -mb-[1px]">
             <button
               type="button"
               onClick={() => setActiveTab("preview")}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`px-3 py-1.5 text-xs font-medium transition-colors border-b-2 ${
                 activeTab === "preview"
-                  ? "bg-[var(--pwc-orange)] text-white"
-                  : "bg-white text-[#4a4a4a] hover:bg-[#f0f0f0]"
+                  ? "text-[var(--pwc-orange)] border-[var(--pwc-orange)]"
+                  : "text-[#4a4a4a] border-transparent hover:text-[#1a1a1a]"
               }`}
             >
               Preview
@@ -88,10 +88,10 @@ export default function SlidePreviewSection({
             <button
               type="button"
               onClick={() => setActiveTab("raw")}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`px-3 py-1.5 text-xs font-medium transition-colors border-b-2 ${
                 activeTab === "raw"
-                  ? "bg-[var(--pwc-orange)] text-white"
-                  : "bg-white text-[#4a4a4a] hover:bg-[#f0f0f0]"
+                  ? "text-[var(--pwc-orange)] border-[var(--pwc-orange)]"
+                  : "text-[#4a4a4a] border-transparent hover:text-[#1a1a1a]"
               }`}
             >
               Raw

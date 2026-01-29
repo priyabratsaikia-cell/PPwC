@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --pwc-orange: #D04A02;
+  --pwc-orange-hover: #b03e02;
+  --pwc-orange-light: #fef3ef;
+  --pwc-black: #000000;
+  --pwc-dark: #1a1a1a;
+  --pwc-gray: #4a4a4a;
+  --pwc-gray-light: #e5e5e5;
+  --pwc-white: #ffffff;
+  --foreground-rgb: 26, 26, 26;
+  --background-rgb: 250, 250, 250;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
+  min-height: 100vh;
+}
+
+/* PwC scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--pwc-orange);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--pwc-orange-hover);
+}
+
+/* Range input - PwC */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--pwc-orange);
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  margin-top: -6px;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 8px;
+  cursor: pointer;
+  background: var(--pwc-gray-light);
+  border-radius: 4px;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.slide-card {
+  animation: slideIn 0.3s ease-out forwards;
+}
+
+/* PwC accent text */
+.pwc-accent {
+  color: var(--pwc-orange);
+}
+
+/* Remove black inner outline on focus – keep orange ring/border only */
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+}
+
+/* Slide preview: force root .slide to stay within bounds so generated HTML is not cut off */
+.slide-preview-wrapper .slide-preview-scaled .slide {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  overflow: hidden !important;
+}
+.slide-preview-wrapper .slide-preview-scaled .slide * {
+  box-sizing: border-box !important;
+}
+.slide-preview-wrapper .slide-preview-scaled .slide [style*="width"] {
+  max-width: 100% !important;
+}

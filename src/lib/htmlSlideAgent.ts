@@ -1,7 +1,11 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from "openai";
 import { SlideContent } from "@/types/presentation";
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "");
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+const MODEL = "gpt-5.2";
 
 const PWC_COLORS = `
 PwC brand colors (use ONLY these—no other colors):
@@ -50,8 +54,6 @@ export async function generateSlideHtml(
   index: number,
   presentationTitle: string
 ): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: "gemini-3-pro-preview" });
-
   const contentJson = JSON.stringify(slideContent, null, 2);
 
   const prompt = `${HTML_SLIDE_PROMPT}
@@ -66,9 +68,11 @@ ${contentJson}
 Output only the single <div class="slide" ...>...</div> HTML for this slide.`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    let text = response.text().trim();
+    const response = await client.responses.create({
+      model: MODEL,
+      input: prompt,
+    });
+    let text = (response.output_text ?? "").trim();
 
     // Strip markdown code fence if present
     const codeMatch = text.match(/```(?:html)?\s*([\s\S]*?)```/);
@@ -99,7 +103,6 @@ export async function* streamSlideHtml(
   index: number,
   presentationTitle: string
 ): AsyncGenerator<string> {
-  const model = genAI.getGenerativeModel({ model: "gemini-3-pro-preview" });
   const contentJson = JSON.stringify(slideContent, null, 2);
   const prompt = `${HTML_SLIDE_PROMPT}
 
@@ -112,9 +115,14 @@ ${contentJson}
 
 Output only the single <div class="slide" ...>...</div> HTML for this slide.`;
 
-  const result = await model.generateContentStream(prompt);
-  for await (const chunk of result.stream) {
-    const text = chunk.text?.() ?? "";
-    if (text) yield text;
+  const stream = await client.responses.create({
+    model: MODEL,
+    input: prompt,
+    stream: true,
+  });
+  for await (const event of stream) {
+    if (event.type === "response.output_text.delta" && event.delta) {
+      yield event.delta;
+    }
   }
 }

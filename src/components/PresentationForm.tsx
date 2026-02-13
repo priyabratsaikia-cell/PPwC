@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { PresentationRequest, PresentationResponse, GenerationStatus } from "@/types/presentation";
 import { assembleSlides } from "@/lib/assembly";
-import { parseAndNormalizeContent } from "@/lib/gemini";
+import { parseAndNormalizeContent } from "@/lib/parsePresentation";
 import SlidePreviewSection from "./SlidePreviewSection";
 import AssistantStepsPanel from "./AssistantStepsPanel";
 

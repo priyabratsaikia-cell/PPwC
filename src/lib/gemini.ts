@@ -1,7 +1,12 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { PresentationRequest, PresentationResponse, SlideContent } from "@/types/presentation";
+import OpenAI from "openai";
+import { PresentationRequest, PresentationResponse } from "@/types/presentation";
+import { parseAndNormalizeContent } from "@/lib/parsePresentation";
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "");
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+const MODEL = "gpt-5.2";
 
 const SYSTEM_PROMPT = `You are an Associate working at PwC. You act as a consultant: research the topic thoroughly, think critically, and produce content that is insightful, evidence-based, and suitable for client or internal presentations. Your job is to generate rich, slide-wise content for a presentation—not limited to bullet points or charts. Use whatever fits each slide best: bullets, narrative, data for charts or tables, key stats, quotes, comparisons, timelines, or any mix. Be creative and varied while maintaining a professional, consultant-grade tone.
 
@@ -48,43 +53,34 @@ Rules:
 export async function* streamPresentationContent(
   request: PresentationRequest
 ): AsyncGenerator<string> {
-  const model = genAI.getGenerativeModel({ model: "gemini-3-pro-preview" });
   const prompt = buildContentPrompt(request);
-  const result = await model.generateContentStream(prompt);
-  for await (const chunk of result.stream) {
-    const text = chunk.text?.() ?? "";
-    if (text) yield text;
+  const stream = await client.responses.create({
+    model: MODEL,
+    input: prompt,
+    stream: true,
+  });
+  for await (const event of stream) {
+    if (event.type === "response.output_text.delta" && event.delta) {
+      yield event.delta;
+    }
   }
 }
 
-export function parseAndNormalizeContent(fullText: string): PresentationResponse {
-  const jsonMatch = fullText.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error("Failed to parse AI response as JSON");
-  }
-  const parsed = JSON.parse(jsonMatch[0]) as PresentationResponse;
-  if (!parsed.title || !Array.isArray(parsed.slides)) {
-    throw new Error("Invalid presentation structure");
-  }
-  parsed.slides = parsed.slides.map((slide: SlideContent, index: number) => ({
-    ...slide,
-    title: slide.title ?? `Slide ${index + 1}`,
-    layout: slide.layout ?? (index === 0 ? "title" : index === parsed.slides.length - 1 ? "closing" : "content"),
-  }));
-  return parsed;
-}
+export { parseAndNormalizeContent } from "@/lib/parsePresentation";
 
 export async function generatePresentation(
   request: PresentationRequest
 ): Promise<PresentationResponse> {
   try {
-    let fullText = "";
-    for await (const chunk of streamPresentationContent(request)) {
-      fullText += chunk;
-    }
+    const prompt = buildContentPrompt(request);
+    const response = await client.responses.create({
+      model: MODEL,
+      input: prompt,
+    });
+    const fullText = response.output_text ?? "";
     return parseAndNormalizeContent(fullText);
   } catch (error) {
-    console.error("Gemini API error:", error);
+    console.error("OpenAI API error:", error);
     throw new Error(
       error instanceof Error ? error.message : "Failed to generate presentation"
     );

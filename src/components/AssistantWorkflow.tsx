@@ -36,7 +36,7 @@ export default function AssistantWorkflow({ children }: { children: React.ReactN
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         <div className="flex-1 min-h-0 overflow-hidden">{children}</div>
         <div className="shrink-0 px-4 py-2 text-[10px] text-[#9ca3af] border-t border-[#e5e5e5] bg-[#f0f0f0]">
-          MODEL: gemini-3-pro-preview
+          MODEL: gpt-5.2
         </div>
       </div>
     </div>

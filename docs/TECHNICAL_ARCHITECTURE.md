@@ -7,7 +7,7 @@ This document describes how PowerPoint (.pptx) files are generated end-to-end in
 ## High-Level Flow
 
 ```
-User (Browser) → Form Submit → API: Generate → Gemini AI → JSON Response
+User (Browser) → Form Submit → API: Generate → OpenAI → JSON Response
                                                       ↓
 User sees preview ← JSON ← API returns JSON
                                                       ↓
@@ -45,7 +45,7 @@ User clicks Download → API: Download → PptxGenJS → .pptx buffer → Browse
 ┌───────────────────────────────┐   ┌─────────────────────────────────────────┐
 │  lib/gemini.ts                 │   │  lib/pptx.ts                            │
 │  • GoogleGenerativeAI client   │   │  • PptxGenJS instance                   │
-│  • Model: gemini-3-pro-preview │   │  • Theme colors by style                │
+│  • Model: gpt-5.2              │   │  • Theme colors by style                │
 │  • Build prompt from request   │   │  • Slide masters (title, content)       │
 │  • Parse JSON from AI response │   │  • One slide per SlideContent            │
 │  • Return PresentationResponse │   │  • write({ outputType: "nodebuffer" })   │
@@ -53,7 +53,7 @@ User clicks Download → API: Download → PptxGenJS → .pptx buffer → Browse
                 │
                 ▼
 ┌───────────────────────────────┐
-│  Google Gemini API            │
+│  OpenAI Responses API         │
 │  • Receives text prompt       │
 │  • Returns JSON-shaped text   │
 └───────────────────────────────┘
@@ -72,8 +72,8 @@ User clicks Download → API: Download → PptxGenJS → .pptx buffer → Browse
 | **3** | `api/generate/route.ts` | Server validates: required fields present, `numberOfSlides` between 3 and 20. Returns 400 if invalid. |
 | **4** | `api/generate/route.ts` | Calls `generatePresentation(body)` from `lib/gemini.ts`. |
 | **5** | `lib/gemini.ts` | Builds a single **prompt** string: system instructions + “Create an N-slide presentation about: &lt;topic&gt;”, audience, style description, optional instructions, and strict JSON output format. |
-| **6** | `lib/gemini.ts` | Instantiates model `gemini-3-pro-preview`, calls `model.generateContent(prompt)`. |
-| **7** | Google Gemini API | Generates text that includes a JSON object matching the requested structure. |
+| **6** | `lib/gemini.ts` | Calls OpenAI `client.responses.create({ model: "gpt-5.2", input: prompt })`. |
+| **7** | OpenAI API | Generates text that includes a JSON object matching the requested structure. |
 | **8** | `lib/gemini.ts` | Extracts JSON with regex `/\{[\s\S]*\}/`, parses it, validates `title` and `slides` array, normalizes each slide (title, bullets, speakerNotes, layout). Returns `PresentationResponse`. |
 | **9** | `api/generate/route.ts` | Returns `PresentationResponse` as JSON to the client. |
 | **10** | `PresentationForm.tsx` | Stores response in state, sets status to `previewing`, and renders `SlidePreview` with the presentation data. |
@@ -105,7 +105,7 @@ User clicks Download → API: Download → PptxGenJS → .pptx buffer → Browse
 - **`SlideContent`**: `title`, `bullets[]`, optional `speakerNotes`, optional `layout` (title | content | section | closing).
 - **`PresentationResponse`** (AI + API output): `title`, `slides: SlideContent[]`, `summary`.
 
-These types are shared across the form, API routes, Gemini, and PptxGenJS so the same structure flows from user input → AI → preview → file generation.
+These types are shared across the form, API routes, OpenAI, and PptxGenJS so the same structure flows from user input → AI → preview → file generation.
 
 ---
 
@@ -115,9 +115,9 @@ These types are shared across the form, API routes, Gemini, and PptxGenJS so the
 |-------|------------|
 | Frontend | React, Next.js App Router, Tailwind CSS |
 | API | Next.js Route Handlers (`route.ts` in `app/api/`) |
-| AI content | Google Generative AI SDK, model: `gemini-3-pro-preview` |
+| AI content | OpenAI SDK, model: `gpt-5.2` (Responses API) |
 | PPTX file | PptxGenJS — in-memory slide construction, then `write("nodebuffer")` |
-| Env | `GOOGLE_API_KEY` in `.env` / `.env.local` (used by `lib/gemini.ts`) |
+| Env | `OPENAI_API_KEY` in `.env` / `.env.local` (used by `lib/gemini.ts` and `lib/htmlSlideAgent.ts`) |
 
 ---
 
@@ -129,9 +129,9 @@ These types are shared across the form, API routes, Gemini, and PptxGenJS so the
 | `src/components/PresentationForm.tsx` | Form state, calls `/api/generate` and `/api/download`, preview/download UI. |
 | `src/components/SlidePreview.tsx` | Renders slide list from `PresentationResponse` in the browser. |
 | `src/components/LoadingState.tsx` | Loading UI during generation. |
-| `src/app/api/generate/route.ts` | Validates request, calls Gemini flow, returns JSON. |
+| `src/app/api/generate/route.ts` | Validates request, calls OpenAI flow, returns JSON. |
 | `src/app/api/download/route.ts` | Validates body, builds PPTX, returns binary response. |
-| `src/lib/gemini.ts` | Prompt building, Gemini API call, JSON parse and normalization. |
+| `src/lib/gemini.ts` | Prompt building, OpenAI API call, JSON parse and normalization. |
 | `src/lib/pptx.ts` | PptxGenJS setup, themes, slide layout logic, buffer output. |
 | `src/types/presentation.ts` | `PresentationRequest`, `PresentationResponse`, `SlideContent`, `GenerationStatus`. |
 
@@ -139,8 +139,8 @@ These types are shared across the form, API routes, Gemini, and PptxGenJS so the
 
 ## Summary
 
-1. **Content** is created by **Gemini** from a structured prompt; the model returns **JSON** that is parsed and normalized into `PresentationResponse`.
+1. **Content** is created by **OpenAI** from a structured prompt; the model returns **JSON** that is parsed and normalized into `PresentationResponse`.
 2. **Preview** is pure React: the same JSON is rendered in the browser; no .pptx is created until the user downloads.
 3. **File** is created only on **Download**: the server uses **PptxGenJS** to turn `PresentationResponse` + `style` into a binary .pptx and sends it with attachment headers so the browser saves the file.
 
-End-to-end: **Form → Generate API → Gemini → JSON → Preview → Download API → PptxGenJS → .pptx file.**
+End-to-end: **Form → Generate API → OpenAI → JSON → Preview → Download API → PptxGenJS → .pptx file.**

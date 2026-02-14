@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { PresentationRequest, PresentationResponse, GenerationStatus } from "@/types/presentation";
+import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from "react";
+import { PresentationRequest, PresentationResponse, GenerationStatus, ModelProvider } from "@/types/presentation";
 import { assembleSlides } from "@/lib/assembly";
 import { parseAndNormalizeContent } from "@/lib/parsePresentation";
+import { exportSlidesToPptx } from "@/lib/pptxExport";
 import SlidePreviewSection from "./SlidePreviewSection";
 import AssistantStepsPanel from "./AssistantStepsPanel";
 
@@ -21,6 +22,12 @@ const STYLE_LABELS: Record<string, string> = {
   corporate: "Corporate",
 };
 
+const modelProviderOptions: { value: ModelProvider; label: string; model: string }[] = [
+  { value: "openai", label: "OpenAI", model: "GPT-5.2" },
+  { value: "gemini", label: "Google", model: "Gemini 3 Pro" },
+  { value: "anthropic", label: "Anthropic", model: "Claude Opus 4.5" },
+];
+
 function normalizeStreamedSlideHtml(raw: string, index: number): string {
   let html = raw.trim();
   const codeMatch = html.match(/```(?:html)?\s*([\s\S]*?)```/);
@@ -33,17 +40,23 @@ function normalizeStreamedSlideHtml(raw: string, index: number): string {
   return html;
 }
 
-type PresentationFormProps = {
-  onGenerateStart?: () => void;
+export type PresentationFormHandle = {
+  exportPptx: () => Promise<void>;
 };
 
-export default function PresentationForm({ onGenerateStart }: PresentationFormProps) {
+type PresentationFormProps = {
+  onGenerateStart?: () => void;
+  onStatusChange?: (status: string) => void;
+};
+
+const PresentationForm = forwardRef<PresentationFormHandle, PresentationFormProps>(function PresentationForm({ onGenerateStart, onStatusChange }, ref) {
   const [formData, setFormData] = useState<PresentationRequest>({
     topic: "",
     numberOfSlides: 8,
     audience: "",
     style: "professional",
     additionalInstructions: "",
+    modelProvider: "gemini",
   });
 
   const [status, setStatus] = useState<GenerationStatus>({ status: "idle" });
@@ -55,12 +68,23 @@ export default function PresentationForm({ onGenerateStart }: PresentationFormPr
   const [showReadyModal, setShowReadyModal] = useState(false);
   const [showTwoColumnLayout, setShowTwoColumnLayout] = useState(false);
   const [contentStreamCollapsed, setContentStreamCollapsed] = useState(false);
+  const [isPptxGenerating, setIsPptxGenerating] = useState(false);
   const contentEndRef = useRef<HTMLDivElement>(null);
   const pdfContainerRef = useRef<HTMLDivElement>(null);
   const previewSectionRef = useRef<HTMLDivElement>(null);
   const rightContentScrollRef = useRef<HTMLDivElement>(null);
   const contentStreamBodyRef = useRef<HTMLDivElement>(null);
   const slideSectionRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  // Expose exportPptx to parent via ref
+  useImperativeHandle(ref, () => ({
+    exportPptx: handleExportPptxInternal,
+  }));
+
+  // Notify parent of status changes
+  useEffect(() => {
+    onStatusChange?.(status.status);
+  }, [status.status, onStatusChange]);
 
   useEffect(() => {
     if (status.status === "ready") {
@@ -130,6 +154,7 @@ export default function PresentationForm({ onGenerateStart }: PresentationFormPr
             style: formData.style,
             index,
             presentationTitle: data.title,
+            modelProvider: formData.modelProvider,
           }),
         });
         if (!res.ok) throw new Error("Failed to stream slide HTML");
@@ -191,6 +216,21 @@ export default function PresentationForm({ onGenerateStart }: PresentationFormPr
     setStatus({ status: "idle" });
   };
 
+  const handleExportPptxInternal = async () => {
+    if (!pdfContainerRef.current) return;
+    setIsPptxGenerating(true);
+    try {
+      const title = presentation?.title ?? formData.topic ?? "presentation";
+      const safeName = title.replace(/[^a-zA-Z0-9]/g, "_");
+      await exportSlidesToPptx(pdfContainerRef.current, `${safeName}.pptx`);
+    } catch (err) {
+      console.error("PPTX export failed:", err);
+      alert("Failed to export PPTX. Please try again.");
+    } finally {
+      setIsPptxGenerating(false);
+    }
+  };
+
   const scrollToSlide = (index: number) => {
     const container = rightContentScrollRef.current;
     const slideEl = slideSectionRefs.current[index];
@@ -238,13 +278,27 @@ export default function PresentationForm({ onGenerateStart }: PresentationFormPr
         <div className="shrink-0 px-4 sm:px-6 lg:px-8 py-4">
           <div className="max-w-2xl mx-auto rounded-2xl border border-[#e5e5e5] bg-white p-4 sm:p-5 shadow-sm">
             <form onSubmit={handleSubmit} className="space-y-3">
-              <div className="flex gap-2 flex-wrap">
+              <div className="grid grid-cols-3 gap-2">
+                <select
+                  value={formData.modelProvider ?? "gemini"}
+                  onChange={(e) =>
+                    setFormData({ ...formData, modelProvider: e.target.value as ModelProvider })
+                  }
+                  className="w-full px-3 py-2 border border-[#e5e5e5] rounded-lg text-sm bg-[#fafafa] focus:ring-2 focus:ring-[#D04A02] focus:border-[#D04A02]"
+                  aria-label="AI Model"
+                >
+                  {modelProviderOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label} — {opt.model}
+                    </option>
+                  ))}
+                </select>
                 <select
                   value={formData.style}
                   onChange={(e) =>
                     setFormData({ ...formData, style: e.target.value as PresentationRequest["style"] })
                   }
-                  className="px-3 py-2 border border-[#e5e5e5] rounded-lg text-sm bg-[#fafafa] focus:ring-2 focus:ring-[#D04A02] focus:border-[#D04A02]"
+                  className="w-full px-3 py-2 border border-[#e5e5e5] rounded-lg text-sm bg-[#fafafa] focus:ring-2 focus:ring-[#D04A02] focus:border-[#D04A02]"
                   aria-label="Tone"
                 >
                   {styleOptions.map((opt) => (
@@ -258,7 +312,7 @@ export default function PresentationForm({ onGenerateStart }: PresentationFormPr
                   onChange={(e) =>
                     setFormData({ ...formData, numberOfSlides: parseInt(e.target.value) })
                   }
-                  className="px-3 py-2 border border-[#e5e5e5] rounded-lg text-sm bg-[#fafafa] focus:ring-2 focus:ring-[#D04A02] focus:border-[#D04A02]"
+                  className="w-full px-3 py-2 border border-[#e5e5e5] rounded-lg text-sm bg-[#fafafa] focus:ring-2 focus:ring-[#D04A02] focus:border-[#D04A02]"
                   aria-label="Number of slides"
                 >
                   {Array.from({ length: 18 }, (_, i) => i + 3).map((n) => (
@@ -360,6 +414,23 @@ export default function PresentationForm({ onGenerateStart }: PresentationFormPr
               />
             </div>
             <div>
+              <label className="block text-xs font-semibold text-[#1a1a1a] mb-1">AI Model</label>
+              <div className="flex flex-wrap gap-1">
+                {modelProviderOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, modelProvider: option.value })}
+                    className={`px-2 py-1.5 rounded text-xs font-medium border ${
+                      formData.modelProvider === option.value ? "border-[#D04A02] bg-[#fef3ef] text-[#D04A02]" : "border-[#e5e5e5] bg-white text-[#4a4a4a]"
+                    }`}
+                  >
+                    {option.model}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
               <label className="block text-xs font-semibold text-[#1a1a1a] mb-1">Style</label>
               <div className="flex flex-wrap gap-1">
                 {styleOptions.map((option) => (
@@ -445,12 +516,15 @@ export default function PresentationForm({ onGenerateStart }: PresentationFormPr
                   {/* Streaming content – show when we have streamed content or when designing/ready with final content */}
                   {((isGenerating && streamedContent) || (presentation && (isDesigning || status.status === "ready"))) && (
                     <div className={`flex flex-col ${isGenerating && streamedContent ? "flex-1 min-h-0" : ""}`}>
-                      {/* Off-screen container for PDF export (in DOM so html2canvas can capture .slide elements) */}
+                      {/* Off-screen container for PPTX/PDF export.
+                          Positioned far left so it's invisible to the user but fully rendered
+                          by the browser — html2canvas needs real painted content
+                          (visibility:hidden / opacity:0 would produce blank captures). */}
                       {assembledHtml && (
                         <div
                           ref={pdfContainerRef}
-                          className="absolute left-[-9999px] top-0 w-[960px]"
-                          style={{ visibility: "hidden" }}
+                          className="fixed w-[960px]"
+                          style={{ left: "-9999px", top: 0, pointerEvents: "none", zIndex: -1 }}
                           aria-hidden
                           dangerouslySetInnerHTML={{ __html: assembledHtml }}
                         />
@@ -531,6 +605,7 @@ export default function PresentationForm({ onGenerateStart }: PresentationFormPr
                     </div>
                   )}
             </div>
+
           </div>
         )}
 
@@ -555,4 +630,6 @@ export default function PresentationForm({ onGenerateStart }: PresentationFormPr
       </main>
     </div>
   );
-}
+});
+
+export default PresentationForm;

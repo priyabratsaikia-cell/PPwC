@@ -4,7 +4,17 @@ import { useState, useCallback, useEffect } from "react";
 
 const PWC_ORANGE = "#D04A02";
 
-export default function TopNav({ projectName = "Untitled.pptx" }: { projectName?: string }) {
+interface TopNavProps {
+  projectName?: string;
+  onExport?: () => void;
+  exportDisabled?: boolean;
+}
+
+export default function TopNav({
+  projectName = "Untitled.pptx",
+  onExport,
+  exportDisabled = true,
+}: TopNavProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
@@ -70,7 +80,9 @@ export default function TopNav({ projectName = "Untitled.pptx" }: { projectName?
         </button>
         <button
           type="button"
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded border-0"
+          onClick={onExport}
+          disabled={exportDisabled}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded border-0 transition disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ backgroundColor: PWC_ORANGE }}
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

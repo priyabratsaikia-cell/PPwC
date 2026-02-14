@@ -1,11 +1,5 @@
-import OpenAI from "openai";
-import { SlideContent } from "@/types/presentation";
-
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-const MODEL = "gpt-5.2";
+import { SlideContent, ModelProvider } from "@/types/presentation";
+import { streamLLM } from "@/lib/llm";
 
 const PWC_COLORS = `
 PwC brand colors (use ONLY these—no other colors):
@@ -18,7 +12,7 @@ PwC brand colors (use ONLY these—no other colors):
 - White background: #ffffff
 `;
 
-const HTML_SLIDE_PROMPT = `You are an Associate working at PwC (HTML Slide Agent). Your job is to turn slide content into a single HTML slide that strictly follows the PwC visual theme.
+const HTML_SLIDE_SYSTEM_PROMPT = `You are an Associate working at PwC (HTML Slide Agent). Your job is to turn slide content into a single HTML slide that strictly follows the PwC visual theme.
 
 ${PWC_COLORS}
 
@@ -45,20 +39,14 @@ Rules:
 7. Generate HTML that looks like an official PwC presentation slide: consistent with PwC branding, polished, and presentation-ready.
 8. Keep the slide self-contained: all styles inline, no external resources.`;
 
-/**
- * HTML Slide Agent: asks the model to generate one creative HTML slide from content + style.
- */
-export async function generateSlideHtml(
+function buildSlideUserPrompt(
   slideContent: SlideContent,
   style: string,
   index: number,
   presentationTitle: string
-): Promise<string> {
+): string {
   const contentJson = JSON.stringify(slideContent, null, 2);
-
-  const prompt = `${HTML_SLIDE_PROMPT}
-
-Presentation style: ${style}
+  return `Presentation style: ${style}
 Presentation title: ${presentationTitle}
 Slide index (0-based): ${index}
 
@@ -66,34 +54,39 @@ Slide content (JSON):
 ${contentJson}
 
 Output only the single <div class="slide" ...>...</div> HTML for this slide.`;
+}
 
-  try {
-    const response = await client.responses.create({
-      model: MODEL,
-      input: prompt,
-    });
-    let text = (response.output_text ?? "").trim();
-
-    // Strip markdown code fence if present
-    const codeMatch = text.match(/```(?:html)?\s*([\s\S]*?)```/);
-    if (codeMatch) text = codeMatch[1].trim();
-
-    let html = text;
-
-    // Ensure one root div with class "slide" and data-slide-index
-    if (!html.includes('class="slide') && !html.includes("class='slide")) {
-      html = `<div class="slide" data-slide-index="${index}" style="width:100%;height:100%;min-height:100%;max-width:100%;box-sizing:border-box;overflow:hidden;padding:2%;">${html}</div>`;
-    } else if (!html.includes("data-slide-index")) {
-      html = html.replace(/<div([^>]*class="[^"]*slide[^"]*")/i, `<div$1 data-slide-index="${index}"`);
-    }
-
-    return html;
-  } catch (error) {
-    console.error("HTML Slide Agent error:", error);
-    throw new Error(
-      error instanceof Error ? error.message : "Failed to generate slide HTML"
-    );
+/**
+ * HTML Slide Agent: generates one creative HTML slide from content + style.
+ */
+export async function generateSlideHtml(
+  slideContent: SlideContent,
+  style: string,
+  index: number,
+  presentationTitle: string,
+  provider: ModelProvider = "openai"
+): Promise<string> {
+  const userPrompt = buildSlideUserPrompt(slideContent, style, index, presentationTitle);
+  let text = "";
+  for await (const chunk of streamLLM(provider, HTML_SLIDE_SYSTEM_PROMPT, userPrompt)) {
+    text += chunk;
   }
+  text = text.trim();
+
+  // Strip markdown code fence if present
+  const codeMatch = text.match(/```(?:html)?\s*([\s\S]*?)```/);
+  if (codeMatch) text = codeMatch[1].trim();
+
+  let html = text;
+
+  // Ensure one root div with class "slide" and data-slide-index
+  if (!html.includes('class="slide') && !html.includes("class='slide")) {
+    html = `<div class="slide" data-slide-index="${index}" style="width:100%;height:100%;min-height:100%;max-width:100%;box-sizing:border-box;overflow:hidden;padding:2%;">${html}</div>`;
+  } else if (!html.includes("data-slide-index")) {
+    html = html.replace(/<div([^>]*class="[^"]*slide[^"]*")/i, `<div$1 data-slide-index="${index}"`);
+  }
+
+  return html;
 }
 
 /** Stream slide HTML generation; yields text chunks. */
@@ -101,28 +94,9 @@ export async function* streamSlideHtml(
   slideContent: SlideContent,
   style: string,
   index: number,
-  presentationTitle: string
+  presentationTitle: string,
+  provider: ModelProvider = "openai"
 ): AsyncGenerator<string> {
-  const contentJson = JSON.stringify(slideContent, null, 2);
-  const prompt = `${HTML_SLIDE_PROMPT}
-
-Presentation style: ${style}
-Presentation title: ${presentationTitle}
-Slide index (0-based): ${index}
-
-Slide content (JSON):
-${contentJson}
-
-Output only the single <div class="slide" ...>...</div> HTML for this slide.`;
-
-  const stream = await client.responses.create({
-    model: MODEL,
-    input: prompt,
-    stream: true,
-  });
-  for await (const event of stream) {
-    if (event.type === "response.output_text.delta" && event.delta) {
-      yield event.delta;
-    }
-  }
+  const userPrompt = buildSlideUserPrompt(slideContent, style, index, presentationTitle);
+  yield* streamLLM(provider, HTML_SLIDE_SYSTEM_PROMPT, userPrompt);
 }

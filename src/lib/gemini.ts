@@ -1,12 +1,6 @@
-import OpenAI from "openai";
-import { PresentationRequest, PresentationResponse } from "@/types/presentation";
+import { PresentationRequest, PresentationResponse, ModelProvider } from "@/types/presentation";
 import { parseAndNormalizeContent } from "@/lib/parsePresentation";
-
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-const MODEL = "gpt-5.2";
+import { streamLLM } from "@/lib/llm";
 
 const SYSTEM_PROMPT = `You are an Associate working at PwC. You act as a consultant: research the topic thoroughly, think critically, and produce content that is insightful, evidence-based, and suitable for client or internal presentations. Your job is to generate rich, slide-wise content for a presentation—not limited to bullet points or charts. Use whatever fits each slide best: bullets, narrative, data for charts or tables, key stats, quotes, comparisons, timelines, or any mix. Be creative and varied while maintaining a professional, consultant-grade tone.
 
@@ -32,11 +26,9 @@ Output ONLY valid JSON in this shape (you may add more fields per slide as neede
   ]
 }`;
 
-function buildContentPrompt(request: PresentationRequest): string {
+function buildUserPrompt(request: PresentationRequest): string {
   const styleHint = request.style;
-  return `${SYSTEM_PROMPT}
-
-Create a ${request.numberOfSlides}-slide presentation about: "${request.topic}"
+  return `Create a ${request.numberOfSlides}-slide presentation about: "${request.topic}"
 
 Target audience: ${request.audience}
 Presentation style (for tone and content choice): ${styleHint}
@@ -53,17 +45,9 @@ Rules:
 export async function* streamPresentationContent(
   request: PresentationRequest
 ): AsyncGenerator<string> {
-  const prompt = buildContentPrompt(request);
-  const stream = await client.responses.create({
-    model: MODEL,
-    input: prompt,
-    stream: true,
-  });
-  for await (const event of stream) {
-    if (event.type === "response.output_text.delta" && event.delta) {
-      yield event.delta;
-    }
-  }
+  const provider: ModelProvider = request.modelProvider ?? "openai";
+  const userPrompt = buildUserPrompt(request);
+  yield* streamLLM(provider, SYSTEM_PROMPT, userPrompt);
 }
 
 export { parseAndNormalizeContent } from "@/lib/parsePresentation";
@@ -72,15 +56,13 @@ export async function generatePresentation(
   request: PresentationRequest
 ): Promise<PresentationResponse> {
   try {
-    const prompt = buildContentPrompt(request);
-    const response = await client.responses.create({
-      model: MODEL,
-      input: prompt,
-    });
-    const fullText = response.output_text ?? "";
+    let fullText = "";
+    for await (const chunk of streamPresentationContent(request)) {
+      fullText += chunk;
+    }
     return parseAndNormalizeContent(fullText);
   } catch (error) {
-    console.error("OpenAI API error:", error);
+    console.error("LLM API error:", error);
     throw new Error(
       error instanceof Error ? error.message : "Failed to generate presentation"
     );

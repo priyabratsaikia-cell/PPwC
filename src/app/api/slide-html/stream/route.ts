@@ -1,17 +1,18 @@
 import { NextRequest } from "next/server";
 import { streamSlideHtml } from "@/lib/htmlSlideAgent";
-import { SlideContent } from "@/types/presentation";
+import { SlideContent, ModelProvider } from "@/types/presentation";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { slideContent, style, index, presentationTitle } = body as {
+    const { slideContent, style, index, presentationTitle, modelProvider } = body as {
       slideContent: SlideContent;
       style: string;
       index: number;
       presentationTitle?: string;
+      modelProvider?: ModelProvider;
     };
 
     if (!slideContent || typeof index !== "number") {
@@ -29,7 +30,8 @@ export async function POST(request: NextRequest) {
             slideContent,
             style ?? "professional",
             index,
-            presentationTitle ?? "Presentation"
+            presentationTitle ?? "Presentation",
+            modelProvider ?? "openai"
           )) {
             controller.enqueue(encoder.encode(chunk));
           }

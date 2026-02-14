@@ -8,12 +8,15 @@ export interface SlideContent {
   [key: string]: unknown;
 }
 
+export type ModelProvider = "openai" | "gemini" | "anthropic";
+
 export interface PresentationRequest {
   topic: string;
   numberOfSlides: number;
   audience: string;
   style: "professional" | "creative" | "minimal" | "corporate";
   additionalInstructions?: string;
+  modelProvider?: ModelProvider;
 }
 
 export interface PresentationResponse {

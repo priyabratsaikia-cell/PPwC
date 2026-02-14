@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
+        // modelProvider is passed through in body and read by streamPresentationContent
         for await (const chunk of streamPresentationContent(body)) {
           controller.enqueue(encoder.encode(chunk));
         }

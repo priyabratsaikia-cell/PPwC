@@ -111,6 +111,35 @@ input[type="range"]::-webkit-slider-runnable-track {
   color: var(--pwc-orange);
 }
 
+/* Analyzing quote: gentle floating emoji */
+@keyframes quoteFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.quote-float {
+  animation: quoteFloat 3s ease-in-out infinite;
+}
+
+/* Analyzing dots: PwC-orange pulsing circles */
+@keyframes analyzingPulse {
+  0%, 80%, 100% {
+    transform: scale(0.6);
+    opacity: 0.35;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.analyzing-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pwc-orange);
+  animation: analyzingPulse 1.4s ease-in-out infinite both;
+}
+
 /* Remove black inner outline on focus – keep orange ring/border only */
 input:focus,
 select:focus,

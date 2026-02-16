@@ -13,6 +13,7 @@ interface AssistantStepsPanelProps {
   todos: TodoItem[];
   onSlideClick?: (index: number) => void;
   canGoToSlide?: (index: number) => boolean;
+  modelLabel?: string;
   children?: React.ReactNode;
 }
 
@@ -27,6 +28,7 @@ export default function AssistantStepsPanel({
   todos,
   onSlideClick,
   canGoToSlide,
+  modelLabel,
   children,
 }: AssistantStepsPanelProps) {
   const showStages = todos.length > 0;
@@ -100,7 +102,7 @@ export default function AssistantStepsPanel({
         )}
       </div>
       <div className="shrink-0 px-4 py-2 text-[10px] text-[#9ca3af] border-t border-[#e5e5e5] bg-[#f0f0f0]">
-        MODEL: gpt-5.2
+        MODEL: {modelLabel ?? "—"}
       </div>
     </div>
   );

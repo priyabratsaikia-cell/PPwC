@@ -34,6 +34,7 @@ function SlideCard({ slide, index, theme }: { slide: SlideContent; index: number
   const isTitle = slide.layout === "title" || index === 0;
   const isSection = slide.layout === "section";
   const isClosing = slide.layout === "closing";
+  const bullets = slide.bullets as string[] | undefined;
 
   if (isTitle || isSection || isClosing) {
     return (
@@ -41,9 +42,9 @@ function SlideCard({ slide, index, theme }: { slide: SlideContent; index: number
         <h3 className="text-white text-xl font-bold text-center mb-2">
           {slide.title}
         </h3>
-        {slide.bullets && slide.bullets.length > 0 && !isSection && (
+        {bullets && bullets.length > 0 && !isSection && (
           <p className="text-gray-300 text-sm text-center">
-            {slide.bullets[0]}
+            {bullets[0]}
           </p>
         )}
       </div>
@@ -57,15 +58,15 @@ function SlideCard({ slide, index, theme }: { slide: SlideContent; index: number
       </div>
       <div className="p-4">
         <ul className="space-y-2">
-          {slide.bullets?.slice(0, 4).map((bullet, i) => (
+          {bullets?.slice(0, 4).map((bullet, i) => (
             <li key={i} className="flex items-start text-sm text-gray-700">
               <span className={`mr-2 ${theme.accent}`}>•</span>
               <span className="line-clamp-2">{bullet}</span>
             </li>
           ))}
-          {slide.bullets && slide.bullets.length > 4 && (
+          {bullets && bullets.length > 4 && (
             <li className="text-xs text-gray-400">
-              +{slide.bullets.length - 4} more points...
+              +{bullets.length - 4} more points...
             </li>
           )}
         </ul>
@@ -96,11 +97,11 @@ export default function SlidePreview({ presentation, style }: SlidePreviewProps)
               {index + 1}
             </div>
             <SlideCard slide={slide} index={index} theme={theme} />
-            {slide.speakerNotes && (
+            {typeof slide.speakerNotes === "string" && slide.speakerNotes && (
               <div className="absolute inset-0 bg-black/80 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4">
                 <div className="text-white text-xs">
                   <p className="font-semibold mb-1">Speaker Notes:</p>
-                  <p className="line-clamp-4">{slide.speakerNotes}</p>
+                  <p className="line-clamp-4">{String(slide.speakerNotes)}</p>
                 </div>
               </div>
             )}

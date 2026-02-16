@@ -10,15 +10,14 @@ export async function POST(request: NextRequest) {
   if (!body.topic || !body.numberOfSlides || !body.audience || !body.style) {
     return new Response(JSON.stringify({ error: "Missing required fields" }), { status: 400 });
   }
-  if (body.numberOfSlides < 3 || body.numberOfSlides > 20) {
-    return new Response(JSON.stringify({ error: "Number of slides must be between 3 and 20" }), { status: 400 });
+  if (body.numberOfSlides < 1 || body.numberOfSlides > 20) {
+    return new Response(JSON.stringify({ error: "Number of slides must be between 1 and 20" }), { status: 400 });
   }
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        // modelProvider is passed through in body and read by streamPresentationContent
         for await (const chunk of streamPresentationContent(body)) {
           controller.enqueue(encoder.encode(chunk));
         }
